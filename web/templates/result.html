@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>检测结果</title>
+    <style>body { font-family: Arial; text-align: center; padding: 20px; }</style>
+</head>
+<body>
+    <h2>✅ 检测结果</h2>
+    <img src="{{ url_for('static', filename='results/' + img_path.split('/')[-1]) }}" 
+         style="max-width: 90%; border: 1px solid #ccc;">
+    <br><br>
+    <a href="/">← 返回重新上传</a>
+</body>
+</html>

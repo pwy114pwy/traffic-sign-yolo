@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>交通标志检测 - 上传</title>
+    <style>body { font-family: Arial; text-align: center; padding: 40px; }</style>
+</head>
+<body>
+    <h2>🚦 交通标志检测系统</h2>
+    <p>上传一张包含交通标志的图片进行识别</p>
+    <form method="POST" enctype="multipart/form-data" action="/predict">
+        <input type="file" name="image" accept="image/*" required>
+        <br><br>
+        <button type="submit">开始检测</button>
+    </form>
+</body>
+</html>
