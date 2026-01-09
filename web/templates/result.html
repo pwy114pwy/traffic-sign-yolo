@@ -2,14 +2,299 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>检测结果</title>
-    <style>body { font-family: Arial; text-align: center; padding: 20px; }</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ 检测结果</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .result-content {
+            padding: 30px;
+        }
+
+        .result-section {
+            margin-bottom: 30px;
+        }
+
+        .result-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .result-image-container {
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #fafafa;
+            padding: 20px;
+        }
+
+        .result-image {
+            max-width: 100%;
+            max-height: 600px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-video-container {
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #fafafa;
+            padding: 20px;
+        }
+
+        .result-video {
+            max-width: 100%;
+            max-height: 600px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .stats-container {
+            background: #f0f8ff;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 4px solid #4facfe;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #4facfe;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .detections-list {
+            background: #fafafa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .detection-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid #eee;
+            transition: all 0.2s ease;
+        }
+
+        .detection-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .detection-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .detection-confidence {
+            color: #4facfe;
+            font-weight: 500;
+        }
+
+        .button-group {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1em;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+
+        .btn-danger:hover {
+            box-shadow: 0 5px 15px rgba(250, 112, 154, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .result-content {
+                padding: 20px;
+            }
+            
+            .button-group {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h2>✅ 检测结果</h2>
-    <img src="{{ url_for('static', filename='results/' + img_path.split('/')[-1]) }}" 
-         style="max-width: 90%; border: 1px solid #ccc;">
-    <br><br>
-    <a href="/">← 返回重新上传</a>
+    <div class="container">
+        <div class="header">
+            <h1>✅ 检测结果</h1>
+            <p>基于 YOLOv5 的智能交通标志识别</p>
+        </div>
+
+        <div class="result-content">
+            <div class="result-section">
+                <div class="result-title">检测结果预览</div>
+                {% if img_path %}
+                <div class="result-image-container">
+                    <img src="{{ url_for('static', filename='results/' + img_path.split('/')[-1]) }}" 
+                         class="result-image" alt="检测结果">
+                </div>
+                {% elif video_path %}
+                <div class="result-video-container">
+                    <video controls class="result-video">
+                        <source src="{{ url_for('static', filename='results/' + video_path.split('/')[-1]) }}" 
+                                type="video/mp4">
+                        您的浏览器不支持视频播放。
+                    </video>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="stats-container">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value">{{ detection_count }}</div>
+                        <div class="stat-label">检测到的标志数量</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ unique_classes_count }}</div>
+                        <div class="stat-label">不同类型标志</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">{{ avg_confidence|round(2) }}%</div>
+                        <div class="stat-label">平均置信度</div>
+                    </div>
+                </div>
+            </div>
+
+            {% if detections %}
+            <div class="result-section">
+                <div class="result-title">检测详情</div>
+                <div class="detections-list">
+                    {% for detection in detections %}
+                    <div class="detection-item">
+                        <div class="detection-name">{{ detection.name }}</div>
+                        <div class="detection-confidence">{{ detection.confidence|round(2) }}%</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="button-group">
+                {% if img_path %}
+                <a href="{{ url_for('static', filename='results/' + img_path.split('/')[-1]) }}" 
+                   class="btn btn-secondary" download>💾 保存结果图片</a>
+                <a href="/" class="btn">📁 上传新图片</a>
+                {% elif video_path %}
+                <a href="{{ url_for('static', filename='results/' + video_path.split('/')[-1]) }}" 
+                   class="btn btn-secondary" download>💾 保存结果视频</a>
+                <a href="/" class="btn">📁 上传新视频</a>
+                {% endif %}
+                <a href="/" class="btn btn-danger">🏠 返回首页</a>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

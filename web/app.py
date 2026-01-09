@@ -2,7 +2,8 @@
 import os
 import cv2
 import torch
-from flask import Flask, request, render_template
+import time
+from flask import Flask, request, render_template, jsonify
 from pathlib import Path
 import sys
 
@@ -84,8 +85,114 @@ def predict():
     output_path = os.path.join(RESULT_FOLDER, file.filename)
     cv2.imwrite(output_path, annotator.result())
 
-    # 返回结果页面，显示处理后的图片
-    return render_template('result.html', img_path=file.filename)
+    # 计算检测统计信息
+    detection_count = 0
+    unique_classes = set()
+    total_confidence = 0.0
+    detections = []
+    
+    for det in pred:
+        if len(det):
+            detection_count += len(det)
+            for *xyxy, conf, cls in reversed(det):
+                c = int(cls)
+                unique_classes.add(names[c])
+                total_confidence += conf.item()
+                detections.append({
+                    'name': names[c],
+                    'confidence': conf.item() * 100
+                })
+    
+    unique_classes_count = len(unique_classes)
+    avg_confidence = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
+    
+    # 返回结果页面，显示处理后的图片和统计信息
+    return render_template('result.html', 
+                         img_path=file.filename,
+                         detection_count=detection_count,
+                         unique_classes_count=unique_classes_count,
+                         avg_confidence=avg_confidence,
+                         detections=detections)
+
+@app.route('/predict_video', methods=['POST'])
+def predict_video():
+    file = request.files['video']
+    if not file or not file.filename.lower().endswith(('.mp4', '.avi', '.mov', '.wmv')):
+        return "请上传有效的视频文件！", 400
+    
+    # 保存上传文件
+    input_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(input_path)
+    
+    # 打开视频
+    cap = cv2.VideoCapture(input_path)
+    if not cap.isOpened():
+        return "无法打开视频文件！", 400
+    
+    # 获取视频信息
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # 创建视频编写器
+    output_path = os.path.join(RESULT_FOLDER, file.filename)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 使用mp4格式
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
+    # 检测统计信息
+    detection_count = 0
+    unique_classes = set()
+    total_confidence = 0.0
+    frame_detections = []
+    
+    # 逐帧处理
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        
+        # 预处理
+        img = letterbox(frame, 640, stride=stride)[0]
+        img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, HWC to CHW
+        img = torch.from_numpy(img.copy()).to(DEVICE).float() / 255.0
+        img = img.unsqueeze(0)
+        
+        # 推理
+        with torch.no_grad():
+            pred = model(img, augment=True)[0]
+            pred = non_max_suppression(pred, conf_thres=0.25, iou_thres=0.45)
+        
+        # 画检测框
+        annotator = Annotator(frame, line_width=2, example=str(names))
+        for det in pred:
+            if len(det):
+                # 使用正确的缩放函数
+                det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], frame.shape).round()
+                detection_count += len(det)
+                for *xyxy, conf, cls in reversed(det):
+                    c = int(cls)
+                    unique_classes.add(names[c])
+                    total_confidence += conf.item()
+                    label = f'{names[c]} {conf:.2f}'
+                    annotator.box_label(xyxy, label, color=colors(c, True))
+        
+        # 写入处理后的帧
+        out.write(annotator.result())
+    
+    # 释放资源
+    cap.release()
+    out.release()
+    
+    unique_classes_count = len(unique_classes)
+    avg_confidence = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
+    
+    # 返回结果页面，显示处理后的视频和统计信息
+    return render_template('result.html', 
+                         video_path=file.filename,
+                         detection_count=detection_count,
+                         unique_classes_count=unique_classes_count,
+                         avg_confidence=avg_confidence)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
