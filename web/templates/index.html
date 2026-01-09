@@ -2,16 +2,404 @@
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
-    <title>交通标志检测 - 上传</title>
-    <style>body { font-family: Arial; text-align: center; padding: 40px; }</style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚦 交通标志检测系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 20px;
+            background: none;
+            border: none;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .tab-button.active {
+            color: #4facfe;
+            border-bottom: 3px solid #4facfe;
+            background: #f8f9ff;
+        }
+
+        .tab-button:hover {
+            background: #f0f0f0;
+        }
+
+        .tab-content {
+            padding: 30px;
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        .upload-section {
+            text-align: center;
+            padding: 30px;
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            background: #fafafa;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: #4facfe;
+            background: #f0f8ff;
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+            color: #999;
+        }
+
+        .upload-label {
+            display: block;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            font-weight: 500;
+            color: #555;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .custom-file-upload {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .custom-file-upload:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+
+        .preview-container {
+            margin-top: 20px;
+            max-height: 400px;
+            overflow: hidden;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+            display: none;
+        }
+
+        .preview-container.show {
+            display: block;
+        }
+
+        #image-preview {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .file-info {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            color: #1976d2;
+            font-weight: 500;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            font-weight: 600;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .upload-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .progress-container {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .progress-text {
+            margin-top: 10px;
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .tab-content {
+                padding: 20px;
+            }
+            
+            .upload-section {
+                padding: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <h2>🚦 交通标志检测系统</h2>
-    <p>上传一张包含交通标志的图片进行识别</p>
-    <form method="POST" enctype="multipart/form-data" action="/predict">
-        <input type="file" name="image" accept="image/*" required>
-        <br><br>
-        <button type="submit">开始检测</button>
-    </form>
+    <div class="container">
+        <div class="header">
+            <h1>🚦 交通标志检测系统</h1>
+            <p>基于 YOLOv5 的智能交通标志识别与分析</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-button active" onclick="openTab(event, 'image')">📷 图片检测</button>
+            <button class="tab-button" onclick="openTab(event, 'video')">🎥 视频检测</button>
+        </div>
+
+        <div class="tab-content">
+            <!-- 图片检测面板 -->
+            <div id="image" class="tab-panel active">
+                <form id="image-form" method="POST" enctype="multipart/form-data" action="/predict">
+                    <div class="upload-section">
+                        <div class="upload-icon">📁</div>
+                        <div class="upload-label">上传图片进行交通标志检测</div>
+                        <label for="file-input" class="custom-file-upload">
+                            选择图片文件
+                        </label>
+                        <input type="file" name="image" id="file-input" accept="image/*" required>
+                        
+                        <div id="file-info" class="file-info" style="display: none;"></div>
+                        
+                        <div id="preview-container" class="preview-container">
+                            <img id="image-preview" src="" alt="图片预览">
+                        </div>
+                    </div>
+                    
+                    <div class="progress-container" id="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="progress-text">准备上传...</div>
+                    </div>
+                    
+                    <center>
+                        <button type="submit" class="upload-btn" id="upload-btn">开始检测</button>
+                    </center>
+                </form>
+            </div>
+
+            <!-- 视频检测面板 -->
+            <div id="video" class="tab-panel">
+                <form id="video-form" method="POST" enctype="multipart/form-data" action="/predict_video">
+                    <div class="upload-section">
+                        <div class="upload-icon">🎬</div>
+                        <div class="upload-label">上传视频进行交通标志检测</div>
+                        <label for="video-input" class="custom-file-upload">
+                            选择视频文件
+                        </label>
+                        <input type="file" name="video" id="video-input" accept="video/*" required>
+                        
+                        <div id="video-info" class="file-info" style="display: none;"></div>
+                    </div>
+                    
+                    <div class="progress-container" id="video-progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="video-progress-fill"></div>
+                        </div>
+                        <div class="progress-text" id="video-progress-text">准备上传...</div>
+                    </div>
+                    
+                    <center>
+                        <button type="submit" class="upload-btn" id="video-upload-btn">开始检测</button>
+                    </center>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 选项卡切换
+        function openTab(evt, tabName) {
+            var i, tabcontent, tablinks;
+            
+            tabcontent = document.getElementsByClassName("tab-panel");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].classList.remove("active");
+            }
+            
+            tablinks = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+            
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+        // 图片预览
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                const preview = document.getElementById('image-preview');
+                const previewContainer = document.getElementById('preview-container');
+                const fileInfo = document.getElementById('file-info');
+                
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    previewContainer.classList.add('show');
+                    fileInfo.textContent = `已选择：${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                    fileInfo.style.display = 'block';
+                }
+                
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // 视频文件信息显示
+        document.getElementById('video-input').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const videoInfo = document.getElementById('video-info');
+                videoInfo.textContent = `已选择：${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+                videoInfo.style.display = 'block';
+            }
+        });
+
+        // 表单提交进度模拟
+        document.getElementById('image-form').addEventListener('submit', function(e) {
+            const progressContainer = document.getElementById('progress-container');
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            const uploadBtn = document.getElementById('upload-btn');
+            
+            progressContainer.style.display = 'block';
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '检测中...';
+            
+            // 模拟进度
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 20;
+                if (progress >= 90) {
+                    clearInterval(interval);
+                    progressFill.style.width = '90%';
+                    progressText.textContent = '正在进行检测...';
+                } else {
+                    progressFill.style.width = progress + '%';
+                    progressText.textContent = `上传进度：${Math.round(progress)}%`;
+                }
+            }, 300);
+        });
+
+        document.getElementById('video-form').addEventListener('submit', function(e) {
+            const progressContainer = document.getElementById('video-progress-container');
+            const progressFill = document.getElementById('video-progress-fill');
+            const progressText = document.getElementById('video-progress-text');
+            const uploadBtn = document.getElementById('video-upload-btn');
+            
+            progressContainer.style.display = 'block';
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '检测中...';
+            
+            // 模拟进度
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress >= 90) {
+                    clearInterval(interval);
+                    progressFill.style.width = '90%';
+                    progressText.textContent = '正在处理视频...';
+                } else {
+                    progressFill.style.width = progress + '%';
+                    progressText.textContent = `上传进度：${Math.round(progress)}%`;
+                }
+            }, 300);
+        });
+    </script>
 </body>
 </html>
