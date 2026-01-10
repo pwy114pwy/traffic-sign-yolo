@@ -81,7 +81,6 @@ def predict():
                 label = f'{names[c]} {conf:.2f}'
                 annotator.box_label(xyxy, label, color=colors(c, True))
 
-    # 为结果图片生成不同的文件名
     output_path = os.path.join(RESULT_FOLDER, file.filename)
     cv2.imwrite(output_path, annotator.result())
 
