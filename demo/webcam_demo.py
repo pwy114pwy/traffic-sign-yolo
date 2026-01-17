@@ -65,6 +65,9 @@ class TrafficSignDetector:
         """绘制检测结果"""
         annotator = Annotator(frame, line_width=2, example=str(self.names))
         
+        # 异常检测设置：置信度阈值
+        ANOMALY_CONF_THRES = 0.5  # 低于此阈值的检测结果视为异常
+        
         for det in pred:
             if len(det):
                 # 缩放检测框坐标到原始图像尺寸
@@ -72,9 +75,15 @@ class TrafficSignDetector:
                 
                 # 绘制检测框和标签
                 for *xyxy, conf, cls in reversed(det):
-                    c = int(cls)
-                    label = f'{self.names[c]} {conf:.2f}'
-                    annotator.box_label(xyxy, label, color=colors(c, True))
+                    if conf < ANOMALY_CONF_THRES:
+                        # 未知交通标志（异常）
+                        label = f'Unknown Sign {conf:.2f}'
+                        annotator.box_label(xyxy, label, color=(255, 0, 0))  # 红色框
+                    else:
+                        # 已知交通标志
+                        c = int(cls)
+                        label = f'{self.names[c]} {conf:.2f}'
+                        annotator.box_label(xyxy, label, color=colors(c, True))
         
         return annotator.result()
     

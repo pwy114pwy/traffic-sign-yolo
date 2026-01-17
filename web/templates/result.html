@@ -72,8 +72,12 @@
         }
 
         .result-image {
-            max-width: 100%;
+            max-width: 800px;
             max-height: 600px;
+            min-width: 300px;
+            min-height: 200px;
+            width: auto;
+            height: auto;
             border-radius: 8px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
@@ -265,6 +269,12 @@
                         <div class="stat-value">{{ avg_confidence|round(2) }}%</div>
                         <div class="stat-label">平均置信度</div>
                     </div>
+                    {% if anomaly_count is defined and anomaly_count > 0 %}
+                    <div class="stat-item">
+                        <div class="stat-value">{{ anomaly_count }}</div>
+                        <div class="stat-label">未知标志数量</div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 

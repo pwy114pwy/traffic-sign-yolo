@@ -70,16 +70,50 @@ def predict():
         pred = model(img, augment=True)[0]  # 启用augment进行多尺度测试
         pred = non_max_suppression(pred, conf_thres=0.25, iou_thres=0.45)  # 降低阈值
 
+    # 检查图片是否过小，如果是则放大
+    original_shape = img0.shape
+    min_dim = min(original_shape[0], original_shape[1])
+    SCALE_THRESHOLD = 200  # 最小尺寸阈值，提高到200像素以确保标签有足够空间
+    scale_factor = 1.0
+    
+    if min_dim < SCALE_THRESHOLD:
+        # 计算放大比例
+        scale_factor = SCALE_THRESHOLD / min_dim
+        new_width = int(original_shape[1] * scale_factor)
+        new_height = int(original_shape[0] * scale_factor)
+        img0 = cv2.resize(img0, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+    
+    # 动态计算线条宽度，根据图片大小调整
+    min_dim = min(img0.shape[0], img0.shape[1])
+    line_width = max(1, int(min_dim / 300))  # 每300像素对应1个像素宽度，最小为1
+    line_width = min(line_width, 4)  # 最大宽度为4
+    
     # 画检测框
-    annotator = Annotator(img0, line_width=2, example=str(names))
+    annotator = Annotator(img0, line_width=line_width, example=str(names))
+    
+    # 异常检测设置：置信度阈值
+    ANOMALY_CONF_THRES = 0.5  # 低于此阈值的检测结果视为异常
+    
     for det in pred:
         if len(det):
             # 使用正确的缩放函数
-            det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], img0.shape).round()
+            det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], original_shape).round()
+            
+            # 如果图片被放大，检测框坐标也需要相应放大
+            if scale_factor != 1.0:
+                det[:, :4] *= scale_factor
+                det[:, :4] = det[:, :4].round()
+                
             for *xyxy, conf, cls in reversed(det):
-                c = int(cls)
-                label = f'{names[c]} {conf:.2f}'
-                annotator.box_label(xyxy, label, color=colors(c, True))
+                if conf < ANOMALY_CONF_THRES:
+                    # 未知交通标志（异常）
+                    label = f'Unknown Sign {conf:.2f}'
+                    annotator.box_label(xyxy, label, color=(255, 0, 0))  # 红色框
+                else:
+                    # 已知交通标志
+                    c = int(cls)
+                    label = f'{names[c]} {conf:.2f}'
+                    annotator.box_label(xyxy, label, color=colors(c, True))
 
     output_path = os.path.join(RESULT_FOLDER, file.filename)
     cv2.imwrite(output_path, annotator.result())
@@ -89,18 +123,33 @@ def predict():
     unique_classes = set()
     total_confidence = 0.0
     detections = []
+    anomaly_count = 0  # 异常检测计数
+    
+    # 异常检测设置：置信度阈值
+    ANOMALY_CONF_THRES = 0.5  # 低于此阈值的检测结果视为异常
     
     for det in pred:
         if len(det):
             detection_count += len(det)
             for *xyxy, conf, cls in reversed(det):
-                c = int(cls)
-                unique_classes.add(names[c])
-                total_confidence += conf.item()
-                detections.append({
-                    'name': names[c],
-                    'confidence': conf.item() * 100
-                })
+                if conf < ANOMALY_CONF_THRES:
+                    # 未知交通标志（异常）
+                    unique_classes.add('Unknown Sign')
+                    total_confidence += conf.item()
+                    detections.append({
+                        'name': 'Unknown Sign',
+                        'confidence': conf.item() * 100
+                    })
+                    anomaly_count += 1
+                else:
+                    # 已知交通标志
+                    c = int(cls)
+                    unique_classes.add(names[c])
+                    total_confidence += conf.item()
+                    detections.append({
+                        'name': names[c],
+                        'confidence': conf.item() * 100
+                    })
     
     unique_classes_count = len(unique_classes)
     avg_confidence = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
@@ -111,7 +160,8 @@ def predict():
                          detection_count=detection_count,
                          unique_classes_count=unique_classes_count,
                          avg_confidence=avg_confidence,
-                         detections=detections)
+                         detections=detections,
+                         anomaly_count=anomaly_count)
 
 @app.route('/predict_video', methods=['POST'])
 def predict_video():
@@ -144,6 +194,7 @@ def predict_video():
     unique_classes = set()
     total_confidence = 0.0
     frame_detections = []
+    anomaly_count = 0  # 异常检测计数
     
     # 逐帧处理
     while cap.isOpened():
@@ -162,19 +213,37 @@ def predict_video():
             pred = model(img, augment=True)[0]
             pred = non_max_suppression(pred, conf_thres=0.25, iou_thres=0.45)
         
+        # 动态计算线条宽度，根据图片大小调整
+        min_dim = min(frame.shape[0], frame.shape[1])
+        line_width = max(1, int(min_dim / 300))  # 每300像素对应1个像素宽度，最小为1
+        line_width = min(line_width, 4)  # 最大宽度为4
+        
         # 画检测框
-        annotator = Annotator(frame, line_width=2, example=str(names))
+        annotator = Annotator(frame, line_width=line_width, example=str(names))
+        
+        # 异常检测设置：置信度阈值
+        ANOMALY_CONF_THRES = 0.5  # 低于此阈值的检测结果视为异常
+        
         for det in pred:
             if len(det):
                 # 使用正确的缩放函数
                 det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], frame.shape).round()
                 detection_count += len(det)
                 for *xyxy, conf, cls in reversed(det):
-                    c = int(cls)
-                    unique_classes.add(names[c])
-                    total_confidence += conf.item()
-                    label = f'{names[c]} {conf:.2f}'
-                    annotator.box_label(xyxy, label, color=colors(c, True))
+                    if conf < ANOMALY_CONF_THRES:
+                        # 未知交通标志（异常）
+                        unique_classes.add('Unknown Sign')
+                        total_confidence += conf.item()
+                        label = f'Unknown Sign {conf:.2f}'
+                        annotator.box_label(xyxy, label, color=(255, 0, 0))  # 红色框
+                        anomaly_count += 1
+                    else:
+                        # 已知交通标志
+                        c = int(cls)
+                        unique_classes.add(names[c])
+                        total_confidence += conf.item()
+                        label = f'{names[c]} {conf:.2f}'
+                        annotator.box_label(xyxy, label, color=colors(c, True))
         
         # 写入处理后的帧
         out.write(annotator.result())
@@ -191,7 +260,8 @@ def predict_video():
                          video_path=file.filename,
                          detection_count=detection_count,
                          unique_classes_count=unique_classes_count,
-                         avg_confidence=avg_confidence)
+                         avg_confidence=avg_confidence,
+                         anomaly_count=anomaly_count)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
