@@ -45,16 +45,29 @@ def convert_csv_to_yolo(csv_path, img_base_dir, label_out_dir, image_out_dir):
 if __name__ == "__main__":
     # 训练集：Train.csv 中的 Path 是 "Train/xx/xxx.png"
     convert_csv_to_yolo(
+
+        # 本地电脑运行时训练集
         csv_path="datasets/GTSRB/Train.csv",
-        img_base_dir="datasets/GTSRB",          # ← 改这里！指向 GTSRB 根目录
+        img_base_dir="datasets/GTSRB",          
+
+        # googleColab运行时训练集
+        # csv_path="/kaggle/input/gtsrb-german-traffic-sign/Test.csv",
+        # img_base_dir="/kaggle/input/gtsrb-german-traffic-sign",
+
         label_out_dir="datasets/gtsrb/labels/train",
         image_out_dir="datasets/gtsrb/images/train"
     )
  
     # 测试集：Test.csv 中的 Path 是 "Test/12624.png"
     convert_csv_to_yolo(
+        # 本地电脑运行时测试集
         csv_path="datasets/GTSRB/Test.csv",
-        img_base_dir="datasets/GTSRB",          # ← 同样指向 GTSRB 根目录
+        img_base_dir="datasets/GTSRB",      
+        
+        # googleColab运行时测试集
+        # csv_path="/kaggle/input/gtsrb-german-traffic-sign/Test.csv",
+        # img_base_dir="/kaggle/input/gtsrb-german-traffic-sign",    
+        
         label_out_dir="datasets/gtsrb/labels/val",
         image_out_dir="datasets/gtsrb/images/val"
     )
