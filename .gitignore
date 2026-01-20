@@ -1,3 +1,76 @@
+# 数据集目录
 datasets/
 
+# Web静态文件
 web/static/
+
+# 虚拟环境
+venv/
+.env/
+.env.local/
+
+# Python编译文件
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# IDE和编辑器配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 日志文件
+logs/
+*.log
+*.log.*
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 临时文件
+*.tmp
+*.temp
+/tmp/
+
+# 模型文件和权重（除了必要的示例权重）
+*.pt
+!yolov5s.pt  # 保留示例权重
+/yolov5/runs/
+
+# 输出和结果文件
+output/
+results/
+*.pdf
+*.csv
+
+# 测试文件
+*.test.py
+.test_cache/
+
+# 性能分析结果
+*.prof
+
+# 包管理文件
+*.egg-info/
+.dist/
+build/
+dist/
+
+# Docker相关文件
+.dockerignore
+Dockerfile
+docker-compose.yml
+.docker/
+*.dockerfile
+!yolov5/.dockerignore
+
+# 其他
+*.bak
+*.old
+*.backup

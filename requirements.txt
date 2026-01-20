@@ -6,3 +6,8 @@ numpy
 pandas
 Pillow
 flask
+python-dotenv
+argparse
+pathlib
+psutil
+fvcore

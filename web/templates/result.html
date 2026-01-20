@@ -275,19 +275,105 @@
                         <div class="stat-label">未知标志数量</div>
                     </div>
                     {% endif %}
+                    {% if inference_time is defined %}
+                    <div class="stat-item">
+                        <div class="stat-value">{{ (inference_time * 1000)|round(2) }} ms</div>
+                        <div class="stat-label">推理时间</div>
+                    </div>
+                    {% endif %}
+                    {% if avg_fps is defined %}
+                    <div class="stat-item">
+                        <div class="stat-value">{{ avg_fps|round(2) }}</div>
+                        <div class="stat-label">平均FPS</div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
+            <!-- 检测参数信息 -->
+            {% if conf_thres is defined %}
+            <div style="background: #f0f8ff; padding: 15px; border-radius: 10px; margin-bottom: 30px; border-left: 4px solid #4facfe;">
+                <h3 style="text-align: center; color: #333; margin-bottom: 10px;">检测参数</h3>
+                <div style="display: flex; justify-content: center; gap: 30px;">
+                    <div style="text-align: center;">
+                        <div style="font-weight: 600; color: #555;">置信度阈值</div>
+                        <div style="font-size: 1.2em; color: #4facfe;">{{ conf_thres }}</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-weight: 600; color: #555;">IoU阈值</div>
+                        <div style="font-size: 1.2em; color: #4facfe;">{{ iou_thres }}</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 检测结果可视化 -->
+            {% if detections and detections|length > 0 %}
+            <div class="result-section">
+                <div class="result-title">检测结果分布</div>
+                
+                <!-- 柱状图 -->
+                <div style="margin-bottom: 30px;">
+                    <h4 style="text-align: center; color: #555; margin-bottom: 15px;">各类别检测数量柱状图</h4>
+                    <canvas id="detection-bar-chart" width="800" height="400"></canvas>
+                </div>
+                
+                <!-- 饼图 -->
+                <div style="margin-bottom: 30px;">
+                    <h4 style="text-align: center; color: #555; margin-bottom: 15px;">各类别检测数量饼图</h4>
+                    <canvas id="detection-pie-chart" width="600" height="400"></canvas>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 检测详情表格 -->
             {% if detections %}
             <div class="result-section">
                 <div class="result-title">检测详情</div>
-                <div class="detections-list">
-                    {% for detection in detections %}
-                    <div class="detection-item">
-                        <div class="detection-name">{{ detection.name }}</div>
-                        <div class="detection-confidence">{{ detection.confidence|round(2) }}%</div>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+                        <thead style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                            <tr>
+                                <th style="padding: 15px; text-align: left;">类别名称</th>
+                                <th style="padding: 15px; text-align: center;">检测数量</th>
+                                <th style="padding: 15px; text-align: center;">占比 (%)</th>
+                                {% if detections[0].confidence is defined %}
+                                <th style="padding: 15px; text-align: center;">平均置信度 (%)</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for detection in detections %}
+                            <tr style="border-bottom: 1px solid #eee; transition: all 0.2s ease;">
+                                <td style="padding: 15px;">{{ detection.name }}</td>
+                                <td style="padding: 15px; text-align: center;">{{ detection.count }}</td>
+                                <td style="padding: 15px; text-align: center;">{{ detection.percentage|round(2) }}</td>
+                                {% if detection.confidence is defined %}
+                                <td style="padding: 15px; text-align: center;">{{ detection.confidence|round(2) }}</td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- 视频处理信息 -->
+            {% if total_time is defined %}
+            <div class="result-section">
+                <div class="result-title">视频处理信息</div>
+                <div style="background: #f8f9ff; padding: 20px; border-radius: 10px; border: 1px solid #e3f2fd;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                        <div style="text-align: center;">
+                            <div style="font-weight: 600; color: #555; margin-bottom: 5px;">总处理时间</div>
+                            <div style="font-size: 1.2em; color: #4facfe;">{{ total_time|round(2) }} 秒</div>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="font-weight: 600; color: #555; margin-bottom: 5px;">平均FPS</div>
+                            <div style="font-size: 1.2em; color: #4facfe;">{{ avg_fps|round(2) }}</div>
+                        </div>
                     </div>
-                    {% endfor %}
                 </div>
             </div>
             {% endif %}
@@ -305,6 +391,105 @@
                 <a href="/" class="btn btn-danger">🏠 返回首页</a>
             </div>
         </div>
+        
+        <!-- 添加Chart.js库 -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        
+        <script>
+            // 准备检测数据
+            const detectionData = {{ detections|tojson if detections else '[]' }};
+            
+            // 提取数据
+            const labels = detectionData.map(d => d.name);
+            const counts = detectionData.map(d => d.count);
+            
+            // 生成随机颜色
+            const generateColors = (count) => {
+                const colors = [];
+                for (let i = 0; i < count; i++) {
+                    colors.push(`hsl(${Math.random() * 360}, 70%, 60%)`);
+                }
+                return colors;
+            };
+            
+            const backgroundColors = generateColors(labels.length);
+            const borderColors = backgroundColors.map(color => color.replace('60%', '80%'));
+            
+            // 柱状图
+            const barCtx = document.getElementById('detection-bar-chart').getContext('2d');
+            new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '检测数量',
+                        data: counts,
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '检测数量'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '交通标志类别'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: '交通标志检测结果柱状图'
+                        }
+                    }
+                }
+            });
+            
+            // 饼图
+            const pieCtx = document.getElementById('detection-pie-chart').getContext('2d');
+            new Chart(pieCtx, {
+                type: 'pie',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '检测数量',
+                        data: counts,
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        },
+                        title: {
+                            display: true,
+                            text: '交通标志检测结果饼图'
+                        }
+                    }
+                }
+            });
+        </script>
     </div>
 </body>
 </html>

@@ -262,6 +262,35 @@
                         </div>
                     </div>
                     
+                    <!-- 检测参数调整 -->
+                    <div style="margin: 20px;">
+                        <h3 style="text-align: center; color: #333; margin-bottom: 20px;">检测参数调整</h3>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label for="conf-thres" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">
+                                置信度阈值: <span id="conf-thres-value">0.25</span>
+                            </label>
+                            <input type="range" name="conf_thres" id="conf-thres" min="0.01" max="1.0" step="0.01" value="0.25" 
+                                   style="width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none;">
+                            <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.8em;">
+                                <span>0.01</span>
+                                <span>1.00</span>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label for="iou-thres" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">
+                                IoU阈值: <span id="iou-thres-value">0.45</span>
+                            </label>
+                            <input type="range" name="iou_thres" id="iou-thres" min="0.01" max="1.0" step="0.01" value="0.45" 
+                                   style="width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none;">
+                            <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.8em;">
+                                <span>0.01</span>
+                                <span>1.00</span>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="progress-container" id="progress-container">
                         <div class="progress-bar">
                             <div class="progress-fill" id="progress-fill"></div>
@@ -289,6 +318,35 @@
                         <div id="video-info" class="file-info" style="display: none;"></div>
                     </div>
                     
+                    <!-- 检测参数调整 -->
+                    <div style="margin: 20px;">
+                        <h3 style="text-align: center; color: #333; margin-bottom: 20px;">检测参数调整</h3>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label for="video-conf-thres" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">
+                                置信度阈值: <span id="video-conf-thres-value">0.25</span>
+                            </label>
+                            <input type="range" name="conf_thres" id="video-conf-thres" min="0.01" max="1.0" step="0.01" value="0.25" 
+                                   style="width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none;">
+                            <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.8em;">
+                                <span>0.01</span>
+                                <span>1.00</span>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 20px;">
+                            <label for="video-iou-thres" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">
+                                IoU阈值: <span id="video-iou-thres-value">0.45</span>
+                            </label>
+                            <input type="range" name="iou_thres" id="video-iou-thres" min="0.01" max="1.0" step="0.01" value="0.45" 
+                                   style="width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none;">
+                            <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.8em;">
+                                <span>0.01</span>
+                                <span>1.00</span>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="progress-container" id="video-progress-container">
                         <div class="progress-bar">
                             <div class="progress-fill" id="video-progress-fill"></div>
@@ -302,6 +360,25 @@
                 </form>
             </div>
         </div>
+        
+        <script>
+            // 实时更新滑块值
+            document.getElementById('conf-thres').addEventListener('input', function(e) {
+                document.getElementById('conf-thres-value').textContent = parseFloat(e.target.value).toFixed(2);
+            });
+            
+            document.getElementById('iou-thres').addEventListener('input', function(e) {
+                document.getElementById('iou-thres-value').textContent = parseFloat(e.target.value).toFixed(2);
+            });
+            
+            document.getElementById('video-conf-thres').addEventListener('input', function(e) {
+                document.getElementById('video-conf-thres-value').textContent = parseFloat(e.target.value).toFixed(2);
+            });
+            
+            document.getElementById('video-iou-thres').addEventListener('input', function(e) {
+                document.getElementById('video-iou-thres-value').textContent = parseFloat(e.target.value).toFixed(2);
+            });
+        </script>
     </div>
 
     <script>
