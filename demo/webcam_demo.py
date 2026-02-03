@@ -57,7 +57,7 @@ class TrafficSignDetector:
     def inference(self, img):
         """模型推理"""
         with torch.no_grad():
-            pred = self.model(img, augment=False)[0]
+            pred = self.model(img, augment=True)[0]
             pred = non_max_suppression(pred, self.conf_thres, self.iou_thres)
         return pred
     

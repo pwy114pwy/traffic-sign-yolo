@@ -226,6 +226,145 @@ python performance_analysis.py --weights <权重文件> --img-size <输入尺寸
 
 本项目采用 MIT 许可证，详见 [LICENSE](LICENSE) 文件。
 
+## 🔧 故障排除
+
+### 问题1：模型文件未找到
+
+**错误信息：**
+```
+❌ 模型文件未找到: yolov5/runs/train/exp3/weights/best.pt
+```
+
+**解决方案：**
+
+1. **如果还没有训练模型**，请先训练：
+   ```bash
+   python yolov5/train.py --data data/gtsrb.yaml --weights yolov5s.pt --epochs 50 --batch-size 16
+   ```
+
+2. **或者使用预训练权重作为临时方案**：
+   - 创建 `.env` 文件（复制 `.env.example`）
+   - 设置：`WEIGHTS_PATH=yolov5s.pt`
+   - 注意：预训练模型未针对交通标志优化，效果可能不佳
+
+### 问题2：依赖安装失败
+
+**错误信息：**
+```
+ERROR: Could not find a version that satisfies the requirement...
+```
+
+**解决方案：**
+
+1. **升级 pip**：
+   ```bash
+   python -m pip install --upgrade pip
+   ```
+
+2. **分步安装依赖**：
+   ```bash
+   # 先安装 PyTorch（根据您的 CUDA 版本选择）
+   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+   
+   # 再安装其他依赖
+   pip install -r requirements.txt
+   ```
+
+3. **使用虚拟环境**（推荐）：
+   ```bash
+   python -m venv venv
+   venv\Scripts\activate  # Windows
+   # source venv/bin/activate  # Linux/Mac
+   pip install -r requirements.txt
+   ```
+
+### 问题3：CUDA 不可用
+
+**错误信息：**
+```
+CUDA available: False
+```
+
+**解决方案：**
+
+1. **检查 CUDA 安装**：
+   ```bash
+   nvidia-smi
+   ```
+
+2. **安装对应版本的 PyTorch**：
+   - 访问 https://pytorch.org/
+   - 选择您的 CUDA 版本
+   - 按照说明安装
+
+3. **如果没有 GPU**，使用 CPU 版本（会较慢）：
+   ```bash
+   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+   ```
+
+### 问题4：Web 应用无法启动
+
+**错误信息：**
+```
+Address already in use
+```
+
+**解决方案：**
+
+1. **更改端口**：
+   - 在 `.env` 文件中设置：`FLASK_PORT=5001`
+
+2. **或者停止占用端口的进程**：
+   ```bash
+   # Windows
+   netstat -ano | findstr :5000
+   taskkill /PID <进程ID> /F
+   
+   # Linux/Mac
+   lsof -i :5000
+   kill -9 <进程ID>
+   ```
+
+### 问题5：图片/视频检测失败
+
+**可能原因：**
+- 文件格式不支持
+- 文件已损坏
+- 内存不足
+
+**解决方案：**
+
+1. **检查文件格式**：
+   - 支持的图片格式：PNG, JPG, JPEG, BMP, WEBP
+   - 支持的视频格式：MP4, AVI, MOV, WMV, MKV
+
+2. **检查日志文件**：
+   ```bash
+   cat logs/app.log  # Linux/Mac
+   type logs\app.log  # Windows
+   ```
+
+3. **减小文件大小**：
+   - 压缩图片/视频
+   - 降低分辨率
+
+### 问题6：检测结果不准确
+
+**解决方案：**
+
+1. **调整检测参数**：
+   - 降低置信度阈值（默认 0.25）
+   - 调整 IoU 阈值（默认 0.45）
+
+2. **使用训练好的模型**：
+   - 预训练的 `yolov5s.pt` 是在 COCO 数据集上训练的
+   - 需要使用在 GTSRB 数据集上训练的模型才能获得最佳效果
+
+3. **重新训练模型**：
+   ```bash
+   python yolov5/train.py --data data/gtsrb.yaml --weights yolov5s.pt --epochs 100 --batch-size 16
+   ```
+
 ## 📧 联系方式
 
 如有问题或建议，请通过以下方式联系：
