@@ -9,6 +9,13 @@ from pathlib import Path
 import sys
 import dotenv
 from typing import Tuple, List, Dict, Any
+import platform
+import pathlib
+
+plt = platform.system()
+if plt == 'Windows':
+    pathlib.PosixPath = pathlib.WindowsPath
+
 
 # 加载环境变量
 dotenv.load_dotenv()
