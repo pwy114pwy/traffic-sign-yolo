@@ -41,6 +41,7 @@ logs/
 # 模型文件和权重（除了必要的示例权重）
 *.pt
 !yolov5s.pt  # 保留示例权重
+!yolov8s.pt  # 保留示例权重
 /yolov5/runs/
 
 # 输出和结果文件

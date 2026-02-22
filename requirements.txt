@@ -1,20 +1,20 @@
 # ============================================
-# 交通标志识别系统依赖配置
+# 交通标志识别系统依赖配置（YOLOv8）
 # ============================================
 
-#YOLOv5
-ultralytics>=8.4.11
+# YOLOv8 (包含训练/推理/数据处理全部功能)
+ultralytics>=8.0.0
 
 # 深度学习框架
-torch>=2.8.0
-torchvision>=0.23.0
+torch>=2.0.0
+torchvision>=0.15.0
 
 # 计算机视觉
 opencv-python>=4.5.0
 opencv-python-headless>=4.5.0  # 无GUI版本，适用于服务器
 
 # 数据处理
-numpy>2
+numpy>=1.21.0
 pandas>=1.2.0
 Pillow>=8.0.0
 
@@ -34,8 +34,7 @@ tqdm>=4.60.0
 psutil>=5.8.0
 scipy>=1.6.0
 
-# YOLOv5 特定依赖
+# 训练可视化（可选）
 tensorboard>=2.4.0
-thop>=0.0.31  # 用于计算模型参数量和FLOPs
 
 # 注意：argparse 和 pathlib 是 Python 标准库，无需安装

@@ -1,7 +1,6 @@
 # web/app.py
 import os
 import cv2
-import torch
 import time
 import logging
 import requests
@@ -18,7 +17,6 @@ import pathlib
 plt = platform.system()
 if plt == 'Windows':
     pathlib.PosixPath = pathlib.WindowsPath
-
 
 # 加载环境变量
 dotenv.load_dotenv()
@@ -43,34 +41,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# 添加 yolov5 到系统路径
-FILE = Path(__file__).resolve()
-ROOT = FILE.parents[1]  # 项目根目录 (traffic-sign-yolo)
-YOLOV5_ROOT = ROOT / 'yolov5'
-sys.path.append(str(YOLOV5_ROOT))
-
-from models.experimental import attempt_load
-from utils.general import non_max_suppression, scale_boxes
-from utils.plots import Annotator, colors
-from utils.augmentations import letterbox
+# ======================
+# 引入 YOLOv8 (ultralytics)
+# ======================
+from ultralytics import YOLO
 
 # ======================
 # 配置区
 # ======================
-# 从环境变量获取配置，或使用默认值
-PROJECT_ROOT = os.getenv("PROJECT_ROOT", str(ROOT))
-WEIGHTS_PATH = os.getenv("WEIGHTS_PATH", 
-                       os.path.join(PROJECT_ROOT, "yolov5", "runs", "train", "exp3", "weights", "best.pt"))
-UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", 
-                         os.path.join(PROJECT_ROOT, "web", "static", "uploads"))
-RESULT_FOLDER = os.getenv("RESULT_FOLDER", 
-                         os.path.join(PROJECT_ROOT, "web", "static", "results"))
+FILE = Path(__file__).resolve()
+ROOT = FILE.parents[1]  # 项目根目录
+
+PROJECT_ROOT  = os.getenv("PROJECT_ROOT", str(ROOT))
+WEIGHTS_PATH  = os.getenv("WEIGHTS_PATH",
+                           os.path.join(PROJECT_ROOT, "runs", "train", "yolov8_gtsrb", "weights", "best.pt"))
+UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER",
+                           os.path.join(PROJECT_ROOT, "web", "static", "uploads"))
+RESULT_FOLDER = os.getenv("RESULT_FOLDER",
+                           os.path.join(PROJECT_ROOT, "web", "static", "results"))
 
 # 创建文件夹
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
 
-# 打印配置信息
 logger.info(f"📁 PROJECT_ROOT: {PROJECT_ROOT}")
 logger.info(f"📦 WEIGHTS_PATH: {WEIGHTS_PATH}")
 logger.info(f"📤 UPLOAD_FOLDER: {UPLOAD_FOLDER}")
@@ -79,36 +72,37 @@ logger.info(f"📥 RESULT_FOLDER: {RESULT_FOLDER}")
 # ======================
 # 模型加载
 # ======================
-DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-logger.info(f"🖥️  使用设备: {DEVICE}")
+# 判断是否为 ultralytics 内置模型名（如 yolov8s.pt）
+# 内置模型名不含路径分隔符，ultralytics 会在加载时自动下载
+_is_builtin_model = os.sep not in WEIGHTS_PATH and '/' not in WEIGHTS_PATH
 
-# 检查模型文件是否存在
-if not os.path.exists(WEIGHTS_PATH):
+# 只有用户指定了完整/相对路径时才检查文件是否存在
+if not _is_builtin_model and not os.path.exists(WEIGHTS_PATH):
     error_msg = f"""
     ❌ 模型文件未找到: {WEIGHTS_PATH}
     
     请选择以下解决方案之一：
     
-    1. 如果您已有训练好的模型：
-       - 确保模型文件路径正确
-       - 或在 .env 文件中设置正确的 WEIGHTS_PATH
+    1. 使用预训练 YOLOv8 权重（快速测试，无需训练）：
+       在 .env 中设置: WEIGHTS_PATH=yolov8s.pt
+       首次运行时会自动下载（约 22 MB）。
     
-    2. 如果还未训练模型：
-       方案A：训练新模型（推荐）
-       python yolov5/train.py --data data/gtsrb.yaml --weights yolov5s.pt --epochs 50
-       
-       方案B：使用预训练权重（临时方案）
-       在 .env 文件中设置: WEIGHTS_PATH=yolov5s.pt
+    2. 训练专属交通标志模型（推荐）：
+       python scripts/train_yolov8.py
+       训练完成后在 .env 中设置:
+       WEIGHTS_PATH=runs/train/yolov8_gtsrb/weights/best.pt
     """
     logger.error(error_msg)
     print(error_msg)
     sys.exit(1)
 
+if _is_builtin_model:
+    logger.info(f"📡 使用 ultralytics 内置模型: {WEIGHTS_PATH}（首次运行将自动下载）")
+
 try:
-    logger.info(f"⏳ 正在加载模型: {WEIGHTS_PATH}")
-    model = attempt_load(WEIGHTS_PATH, device=DEVICE)
-    stride = int(model.stride.max())  # 获取模型步长
-    names = model.module.names if hasattr(model, 'module') else model.names
+    logger.info(f"⏳ 正在加载 YOLOv8 模型: {WEIGHTS_PATH}")
+    model = YOLO(WEIGHTS_PATH)
+    names = model.names  # dict: {0: 'class_name', ...}
     logger.info(f"✅ 模型加载成功！类别数: {len(names)}")
     logger.info(f"📋 类别列表: {names}")
 except Exception as e:
@@ -119,7 +113,7 @@ except Exception as e:
 
 # 从环境变量获取检测参数
 ANOMALY_CONF_THRES = float(os.getenv("ANOMALY_CONF_THRES", "0.5"))
-SCALE_THRESHOLD = int(os.getenv("SCALE_THRESHOLD", "200"))
+SCALE_THRESHOLD    = int(os.getenv("SCALE_THRESHOLD", "200"))
 
 app = Flask(__name__)
 app.logger.setLevel(getattr(logging, log_level))
@@ -128,77 +122,116 @@ app.logger.setLevel(getattr(logging, log_level))
 # 辅助函数
 # ======================
 
-def preprocess_image(img: Any, img_size: int = 640) -> torch.Tensor:
-    """预处理图像用于模型推理
-    
-    Args:
-        img: 输入图像（numpy array）
-        img_size: 目标图像尺寸
-        
-    Returns:
-        预处理后的张量
-    """
-    img = letterbox(img, img_size, stride=stride)[0]
-    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, HWC to CHW
-    img = torch.from_numpy(img.copy()).to(DEVICE).float() / 255.0
-    return img.unsqueeze(0)
+def detect_objects(img: np.ndarray, conf_thres: float = 0.25, iou_thres: float = 0.45):
+    """使用 YOLOv8 对单张图像执行目标检测。
 
-
-def detect_objects(img: torch.Tensor, conf_thres: float = 0.25, iou_thres: float = 0.45) -> List:
-    """执行目标检测
-    
     Args:
-        img: 预处理后的图像张量
+        img: BGR 格式的 numpy 图像（原始分辨率）
         conf_thres: 置信度阈值
-        iou_thres: IoU阈值
-        
+        iou_thres: IoU（NMS）阈值
+
     Returns:
-        检测结果列表
+        ultralytics Results 对象（单张图片）
     """
-    with torch.no_grad():
-        pred = model(img, augment=True)[0]
-        pred = non_max_suppression(pred, conf_thres=conf_thres, iou_thres=iou_thres)
-    return pred
+    results = model.predict(
+        source=img,
+        conf=conf_thres,
+        iou=iou_thres,
+        verbose=False,
+        device=None,  # 自动选择设备
+    )
+    return results[0]  # 单张图片只有一个结果
 
 
-def annotate_detection(annotator: Annotator, xyxy: List, conf: float, cls: int, 
-                       anomaly_thres: float = ANOMALY_CONF_THRES) -> str:
-    """标注单个检测结果
-    
+def upscale_if_small(img: np.ndarray) -> Tuple[np.ndarray, float]:
+    """若图片过小则放大，返回（放大后图片, 缩放比例）。"""
+    min_dim = min(img.shape[0], img.shape[1])
+    if min_dim < SCALE_THRESHOLD:
+        scale = SCALE_THRESHOLD / min_dim
+        new_w = int(img.shape[1] * scale)
+        new_h = int(img.shape[0] * scale)
+        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+        return img, scale
+    return img, 1.0
+
+
+def draw_detections(img: np.ndarray, result, scale_factor: float = 1.0) -> Tuple[np.ndarray, int, set, float, Dict, int]:
+    """在图像上绘制检测结果并收集统计信息。
+
     Args:
-        annotator: 标注器对象
-        xyxy: 边界框坐标
-        conf: 置信度
-        cls: 类别ID
-        anomaly_thres: 异常检测阈值
-        
+        img: 目标图像（用于绘制）
+        result: YOLOv8 Results 对象
+        scale_factor: 图像放大比例（用于坐标变换）
+
     Returns:
-        类别名称
+        (annotated_img, detection_count, unique_classes, total_confidence, class_counts, anomaly_count)
     """
-    if conf < anomaly_thres:
-        class_name = 'Unknown Sign'
-        label = f'Unknown Sign {conf:.2f}'
-        annotator.box_label(xyxy, label, color=(255, 0, 0))  # 红色框
-    else:
-        c = int(cls)
-        class_name = names[c]
-        label = f'{class_name} {conf:.2f}'
-        annotator.box_label(xyxy, label, color=colors(c, True))
-    return class_name
+    detection_count = 0
+    unique_classes  = set()
+    total_confidence = 0.0
+    class_counts    = {}
+    anomaly_count   = 0
+
+    boxes = result.boxes
+    if boxes is not None and len(boxes):
+        for box in boxes:
+            conf = float(box.conf[0])
+            cls  = int(box.cls[0])
+            # 原始坐标（相对于传入 predict 的原图）；若放大则需乘以 scale_factor
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            x1 = int(x1 * scale_factor)
+            y1 = int(y1 * scale_factor)
+            x2 = int(x2 * scale_factor)
+            y2 = int(y2 * scale_factor)
+
+            if conf < ANOMALY_CONF_THRES:
+                class_name = 'Unknown Sign'
+                color = (0, 0, 255)  # 红色
+            else:
+                class_name = names[cls]
+                # 为不同类别生成不同颜色
+                hue = int(cls * 180 / max(len(names), 1)) % 180
+                bgr = cv2.cvtColor(np.uint8([[[hue, 200, 200]]]), cv2.COLOR_HSV2BGR)[0][0]
+                color = (int(bgr[0]), int(bgr[1]), int(bgr[2]))
+                anomaly_count_delta = 0
+
+            label = f'{class_name} {conf:.2f}'
+
+            # 绘制边框
+            lw = max(1, int(min(img.shape[:2]) / 300))
+            lw = min(lw, 4)
+            cv2.rectangle(img, (x1, y1), (x2, y2), color, lw)
+
+            # 绘制标签背景和文字
+            font_scale = max(0.4, lw * 0.4)
+            (tw, th), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, lw)
+            cv2.rectangle(img, (x1, y1 - th - baseline - 4), (x1 + tw, y1), color, -1)
+            cv2.putText(img, label, (x1, y1 - baseline - 2),
+                        cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), max(1, lw - 1))
+
+            # 统计
+            detection_count += 1
+            unique_classes.add(class_name)
+            total_confidence += conf
+            class_counts[class_name] = class_counts.get(class_name, 0) + 1
+            if conf < ANOMALY_CONF_THRES:
+                anomaly_count += 1
+
+    return img, detection_count, unique_classes, total_confidence, class_counts, anomaly_count
 
 
-def calculate_line_width(img_shape: Tuple[int, int]) -> int:
-    """根据图像尺寸计算合适的线条宽度
-    
-    Args:
-        img_shape: 图像形状 (height, width)
-        
-    Returns:
-        线条宽度
-    """
-    min_dim = min(img_shape[0], img_shape[1])
-    line_width = max(1, int(min_dim / 300))  # 每300像素对应1个像素宽度
-    return min(line_width, 4)  # 最大宽度为4
+def build_detections_list(class_counts: Dict, detection_count: int) -> List[Dict]:
+    """将类别计数转换为排序后的检测详情列表。"""
+    detections = [
+        {
+            'name': name,
+            'count': count,
+            'percentage': (count / detection_count * 100) if detection_count > 0 else 0.0
+        }
+        for name, count in class_counts.items()
+    ]
+    detections.sort(key=lambda x: x['count'], reverse=True)
+    return detections
 
 
 # ======================
@@ -210,6 +243,7 @@ def index():
     """主页"""
     return render_template('index.html')
 
+
 @app.route('/predict', methods=['POST'])
 def predict():
     """图片检测接口"""
@@ -218,12 +252,12 @@ def predict():
         if 'image' not in request.files:
             logger.warning("未上传文件")
             return jsonify({'error': '未上传文件'}), 400
-        
+
         file = request.files['image']
         if not file or not file.filename:
             logger.warning("文件为空")
             return jsonify({'error': '文件为空'}), 400
-        
+
         # 验证文件类型
         allowed_extensions = ('.png', '.jpg', '.jpeg', '.bmp', '.webp')
         if not file.filename.lower().endswith(allowed_extensions):
@@ -233,7 +267,7 @@ def predict():
 
         # 获取检测参数
         conf_thres = float(request.form.get('conf_thres', 0.25))
-        iou_thres = float(request.form.get('iou_thres', 0.45))
+        iou_thres  = float(request.form.get('iou_thres', 0.45))
 
         # 保存上传文件
         input_path = os.path.join(UPLOAD_FOLDER, file.filename)
@@ -244,7 +278,6 @@ def predict():
         img0 = cv2.imread(input_path)
         if img0 is None:
             logger.error(f"无法读取图片: {input_path}")
-            # 删除无效文件
             if os.path.exists(input_path):
                 os.remove(input_path)
             return jsonify({'error': '无法读取图片，文件可能已损坏'}), 400
@@ -252,138 +285,78 @@ def predict():
         # 开始计时
         start_time = time.time()
 
-        # 预处理图像
-        img = preprocess_image(img0, 640)
+        # 推理（传入原始图像，YOLOv8 内部自动处理预处理）
+        result = detect_objects(img0, conf_thres=conf_thres, iou_thres=iou_thres)
 
-        # 推理
-        pred = detect_objects(img, conf_thres=conf_thres, iou_thres=iou_thres)
-
-        # 计算推理时间
         inference_time = time.time() - start_time
         logger.info(f"推理耗时: {inference_time:.3f}秒")
 
-        # 检查图片是否过小，如果是则放大
-        original_shape = img0.shape
-        min_dim = min(original_shape[0], original_shape[1])
-        scale_factor = 1.0
-        
-        if min_dim < SCALE_THRESHOLD:
-            # 计算放大比例
-            scale_factor = SCALE_THRESHOLD / min_dim
-            new_width = int(original_shape[1] * scale_factor)
-            new_height = int(original_shape[0] * scale_factor)
-            img0 = cv2.resize(img0, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
-            logger.info(f"图片已放大: {original_shape[1]}x{original_shape[0]} -> {new_width}x{new_height}")
-        
-        # 动态计算线条宽度
-        line_width = calculate_line_width(img0.shape)
-        
-        # 画检测框
-        annotator = Annotator(img0, line_width=line_width, example=str(names))
-        
-        # 检测统计信息
-        detection_count = 0
-        unique_classes = set()
-        total_confidence = 0.0
-        class_counts = {}
-        anomaly_count = 0  # 异常检测计数
-        
-        for det in pred:
-            if len(det):
-                # 使用正确的缩放函数
-                det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], original_shape).round()
-                
-                # 如果图片被放大，检测框坐标也需要相应放大
-                if scale_factor != 1.0:
-                    det[:, :4] *= scale_factor
-                    det[:, :4] = det[:, :4].round()
-                    
-                detection_count += len(det)
-                for *xyxy, conf, cls in reversed(det):
-                    class_name = annotate_detection(annotator, xyxy, conf.item(), cls.item())
-                    unique_classes.add(class_name)
-                    total_confidence += conf.item()
-                    
-                    # 更新类别计数
-                    if class_name not in class_counts:
-                        class_counts[class_name] = 0
-                    class_counts[class_name] += 1
-                    
-                    # 统计异常检测
-                    if conf < ANOMALY_CONF_THRES:
-                        anomaly_count += 1
+        # 若图片过小则放大
+        img_draw, scale_factor = upscale_if_small(img0.copy())
 
+        # 绘制检测结果
+        img_draw, detection_count, unique_classes, total_confidence, class_counts, anomaly_count = \
+            draw_detections(img_draw, result, scale_factor)
+
+        # 保存结果图
         output_path = os.path.join(RESULT_FOLDER, file.filename)
-        cv2.imwrite(output_path, annotator.result())
+        cv2.imwrite(output_path, img_draw)
         logger.info(f"检测完成: {detection_count} 个目标, {len(unique_classes)} 个类别")
 
-        # 准备检测详情列表
-        detections = []
-        for class_name, count in class_counts.items():
-            detections.append({
-                'name': class_name,
-                'count': count,
-                'percentage': (count / detection_count * 100) if detection_count > 0 else 0.0
-            })
-        
-        # 按检测数量排序
-        detections.sort(key=lambda x: x['count'], reverse=True)
-        
-        unique_classes_count = len(unique_classes)
-        avg_confidence = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
-        
+        detections       = build_detections_list(class_counts, detection_count)
+        avg_confidence   = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
         logger.info(f"平均置信度: {avg_confidence:.2f}%, 异常检测: {anomaly_count}")
-        
-        # 返回结果页面，显示处理后的图片和统计信息
-        return render_template('result.html', 
-                             img_path=file.filename,
-                             detection_count=detection_count,
-                             unique_classes_count=unique_classes_count,
-                             avg_confidence=avg_confidence,
-                             detections=detections,
-                             anomaly_count=anomaly_count,
-                             inference_time=inference_time,
-                             class_counts=class_counts,
-                             conf_thres=conf_thres,
-                             iou_thres=iou_thres)
-    
+
+        return render_template('result.html',
+                               img_path=file.filename,
+                               detection_count=detection_count,
+                               unique_classes_count=len(unique_classes),
+                               avg_confidence=avg_confidence,
+                               detections=detections,
+                               anomaly_count=anomaly_count,
+                               inference_time=inference_time,
+                               class_counts=class_counts,
+                               conf_thres=conf_thres,
+                               iou_thres=iou_thres)
+
     except Exception as e:
         logger.error(f"图片检测失败: {str(e)}", exc_info=True)
         return jsonify({'error': f'检测失败: {str(e)}'}), 500
+
 
 @app.route('/predict_video', methods=['POST'])
 def predict_video():
     """视频检测接口"""
     cap = None
     out = None
-    
+
     try:
         # 验证文件上传
         if 'video' not in request.files:
             logger.warning("未上传视频文件")
             return jsonify({'error': '未上传视频文件'}), 400
-        
+
         file = request.files['video']
         if not file or not file.filename:
             logger.warning("视频文件为空")
             return jsonify({'error': '视频文件为空'}), 400
-        
+
         # 验证文件类型
         allowed_extensions = ('.mp4', '.avi', '.mov', '.wmv', '.mkv')
         if not file.filename.lower().endswith(allowed_extensions):
             logger.warning(f"不支持的视频格式: {file.filename}")
             ext_list = ', '.join(allowed_extensions)
             return jsonify({'error': f'不支持的视频格式，请上传 {ext_list} 视频'}), 400
-    
+
         # 获取检测参数
         conf_thres = float(request.form.get('conf_thres', 0.25))
-        iou_thres = float(request.form.get('iou_thres', 0.45))
-        
+        iou_thres  = float(request.form.get('iou_thres', 0.45))
+
         # 保存上传文件
         input_path = os.path.join(UPLOAD_FOLDER, file.filename)
         file.save(input_path)
         logger.info(f"视频文件已保存: {input_path}")
-        
+
         # 打开视频
         cap = cv2.VideoCapture(input_path)
         if not cap.isOpened():
@@ -391,139 +364,96 @@ def predict_video():
             if os.path.exists(input_path):
                 os.remove(input_path)
             return jsonify({'error': '无法打开视频文件，文件可能已损坏'}), 400
-        
+
         # 获取视频信息
-        fps = int(cap.get(cv2.CAP_PROP_FPS))
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        fps         = int(cap.get(cv2.CAP_PROP_FPS))
+        width       = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height      = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         logger.info(f"视频信息: {width}x{height}, {fps}fps, {frame_count}帧")
-        
+
         # 创建视频编写器
         output_path = os.path.join(RESULT_FOLDER, file.filename)
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # 使用mp4格式
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-        
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out    = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
         # 检测统计信息
-        detection_count = 0
-        unique_classes = set()
+        detection_count  = 0
+        unique_classes   = set()
         total_confidence = 0.0
         frame_detections = []
-        anomaly_count = 0  # 异常检测计数
-        class_counts = {}
-        
+        anomaly_count    = 0
+        class_counts     = {}
+
         # 开始计时
-        start_time = time.time()
+        start_time      = time.time()
         processed_frames = 0
-        
-        # 逐帧处理
+
         try:
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
-                
+
                 processed_frames += 1
-                
-                # 预处理
-                img = preprocess_image(frame, 640)
-                
-                # 推理
-                pred = detect_objects(img, conf_thres=conf_thres, iou_thres=iou_thres)
-                
-                # 动态计算线条宽度
-                line_width = calculate_line_width(frame.shape)
-                
-                # 画检测框
-                annotator = Annotator(frame, line_width=line_width, example=str(names))
-                
-                frame_det_count = 0
-                for det in pred:
-                    if len(det):
-                        # 使用正确的缩放函数
-                        det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], frame.shape).round()
-                        frame_det_count += len(det)
-                        detection_count += len(det)
-                        for *xyxy, conf, cls in reversed(det):
-                            class_name = annotate_detection(annotator, xyxy, conf.item(), cls.item())
-                            unique_classes.add(class_name)
-                            total_confidence += conf.item()
-                            
-                            # 更新类别计数
-                            if class_name not in class_counts:
-                                class_counts[class_name] = 0
-                            class_counts[class_name] += 1
-                            
-                            # 统计异常检测
-                            if conf < ANOMALY_CONF_THRES:
-                                anomaly_count += 1
-                
-                # 计算实时FPS
-                current_time = time.time()
-                elapsed_time = current_time - start_time
-                realtime_fps = processed_frames / elapsed_time if elapsed_time > 0 else 0
-                
-                # 在视频上显示FPS和检测数量
-                cv2.putText(frame, f'FPS: {realtime_fps:.1f}', (10, 30), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.putText(frame, f'Detections: {frame_det_count}', (10, 70), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                
-                # 写入处理后的帧
-                out.write(annotator.result())
-                
-                # 记录每帧检测数量
-                frame_detections.append(frame_det_count)
-                
-                # 每处理100帧记录一次进度
+
+                # YOLOv8 推理
+                result = detect_objects(frame, conf_thres=conf_thres, iou_thres=iou_thres)
+
+                # 绘制检测结果（视频帧不做 upscale）
+                annotated_frame, fd_count, fc_classes, fc_conf, fc_class_counts, fc_anomaly = \
+                    draw_detections(frame.copy(), result, scale_factor=1.0)
+
+                detection_count  += fd_count
+                unique_classes   |= fc_classes
+                total_confidence += fc_conf
+                anomaly_count    += fc_anomaly
+                for name, cnt in fc_class_counts.items():
+                    class_counts[name] = class_counts.get(name, 0) + cnt
+
+                # 计算实时 FPS
+                elapsed      = time.time() - start_time
+                realtime_fps = processed_frames / elapsed if elapsed > 0 else 0
+
+                # 在视频帧上叠加 FPS 和检测数量
+                cv2.putText(annotated_frame, f'FPS: {realtime_fps:.1f}', (10, 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.putText(annotated_frame, f'Detections: {fd_count}', (10, 70),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+                out.write(annotated_frame)
+                frame_detections.append(fd_count)
+
                 if processed_frames % 100 == 0:
                     logger.info(f"已处理 {processed_frames}/{frame_count} 帧")
-        
+
         finally:
-            # 确保资源释放
             if cap is not None:
                 cap.release()
             if out is not None:
                 out.release()
             logger.info("视频资源已释放")
-        
-        # 计算总处理时间
-        total_time = time.time() - start_time
-        avg_fps = processed_frames / total_time if total_time > 0 else 0
-        logger.info(f"视频处理完成: {processed_frames}帧, 耗时{total_time:.2f}秒, 平均FPS: {avg_fps:.2f}")
-        
-        unique_classes_count = len(unique_classes)
+
+        total_time   = time.time() - start_time
+        avg_fps      = processed_frames / total_time if total_time > 0 else 0
         avg_confidence = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
-        
-        # 准备检测详情列表
-        detections = []
-        for class_name, count in class_counts.items():
-            detections.append({
-                'name': class_name,
-                'count': count,
-                'percentage': (count / detection_count * 100) if detection_count > 0 else 0.0
-            })
-        
-        # 按检测数量排序
-        detections.sort(key=lambda x: x['count'], reverse=True)
-        
-        logger.info(f"总检测: {detection_count}, 平均置信度: {avg_confidence:.2f}%, 异常: {anomaly_count}")
-        
-        # 返回结果页面，显示处理后的视频和统计信息
-        return render_template('result.html', 
-                             video_path=file.filename,
-                             detection_count=detection_count,
-                             unique_classes_count=unique_classes_count,
-                             avg_confidence=avg_confidence,
-                             anomaly_count=anomaly_count,
-                             avg_fps=avg_fps,
-                             total_time=total_time,
-                             detections=detections,
-                             class_counts=class_counts)
-    
+        logger.info(f"视频处理完成: {processed_frames}帧, 耗时{total_time:.2f}秒, 平均FPS: {avg_fps:.2f}")
+
+        detections = build_detections_list(class_counts, detection_count)
+
+        return render_template('result.html',
+                               video_path=file.filename,
+                               detection_count=detection_count,
+                               unique_classes_count=len(unique_classes),
+                               avg_confidence=avg_confidence,
+                               anomaly_count=anomaly_count,
+                               avg_fps=avg_fps,
+                               total_time=total_time,
+                               detections=detections,
+                               class_counts=class_counts)
+
     except Exception as e:
         logger.error(f"视频检测失败: {str(e)}", exc_info=True)
-        # 确保资源释放
         if cap is not None:
             cap.release()
         if out is not None:
@@ -539,15 +469,14 @@ def predict_url():
         if not image_url:
             return jsonify({'error': '未提供图片网址'}), 400
 
-        # 验证 URL 格式
         if not image_url.startswith(('http://', 'https://')):
             return jsonify({'error': '请输入有效的 http/https 图片网址'}), 400
 
         # 获取检测参数
         conf_thres = float(request.form.get('conf_thres', 0.25))
-        iou_thres = float(request.form.get('iou_thres', 0.45))
+        iou_thres  = float(request.form.get('iou_thres', 0.45))
 
-        # 下载图片（自动使用系统代理；若 SSL 校验失败则关闭验证重试）
+        # 下载图片
         logger.info(f"正在下载图片: {image_url}")
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
         try:
@@ -575,7 +504,6 @@ def predict_url():
         except requests.exceptions.RequestException as e:
             return jsonify({'error': f'下载图片失败: {str(e)}'}), 400
 
-
         # 解码图片
         img_array = np.frombuffer(resp.content, dtype=np.uint8)
         img0 = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
@@ -586,11 +514,10 @@ def predict_url():
         from urllib.parse import urlparse
         url_path = urlparse(image_url).path
         filename = os.path.basename(url_path) or 'url_image.jpg'
-        # 确保文件名有合法图片扩展名
         if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
             filename += '.jpg'
 
-        # 保存原图（可选，方便调试）
+        # 保存原图
         input_path = os.path.join(UPLOAD_FOLDER, filename)
         cv2.imwrite(input_path, img0)
         logger.info(f"URL 图片已保存: {input_path}")
@@ -598,61 +525,25 @@ def predict_url():
         # 开始计时
         start_time = time.time()
 
-        # 预处理
-        img = preprocess_image(img0, 640)
-
         # 推理
-        pred = detect_objects(img, conf_thres=conf_thres, iou_thres=iou_thres)
+        result = detect_objects(img0, conf_thres=conf_thres, iou_thres=iou_thres)
 
         inference_time = time.time() - start_time
         logger.info(f"推理耗时: {inference_time:.3f}秒")
 
-        # 检查图片是否过小
-        original_shape = img0.shape
-        min_dim = min(original_shape[0], original_shape[1])
-        scale_factor = 1.0
+        # 若图片过小则放大
+        img_draw, scale_factor = upscale_if_small(img0.copy())
 
-        if min_dim < SCALE_THRESHOLD:
-            scale_factor = SCALE_THRESHOLD / min_dim
-            new_width = int(original_shape[1] * scale_factor)
-            new_height = int(original_shape[0] * scale_factor)
-            img0 = cv2.resize(img0, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+        # 绘制检测结果
+        img_draw, detection_count, unique_classes, total_confidence, class_counts, anomaly_count = \
+            draw_detections(img_draw, result, scale_factor)
 
-        line_width = calculate_line_width(img0.shape)
-        annotator = Annotator(img0, line_width=line_width, example=str(names))
-
-        detection_count = 0
-        unique_classes = set()
-        total_confidence = 0.0
-        class_counts = {}
-        anomaly_count = 0
-
-        for det in pred:
-            if len(det):
-                det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], original_shape).round()
-                if scale_factor != 1.0:
-                    det[:, :4] *= scale_factor
-                    det[:, :4] = det[:, :4].round()
-                detection_count += len(det)
-                for *xyxy, conf, cls in reversed(det):
-                    class_name = annotate_detection(annotator, xyxy, conf.item(), cls.item())
-                    unique_classes.add(class_name)
-                    total_confidence += conf.item()
-                    class_counts[class_name] = class_counts.get(class_name, 0) + 1
-                    if conf < ANOMALY_CONF_THRES:
-                        anomaly_count += 1
-
+        # 保存结果图
         output_path = os.path.join(RESULT_FOLDER, filename)
-        cv2.imwrite(output_path, annotator.result())
+        cv2.imwrite(output_path, img_draw)
         logger.info(f"URL 图片检测完成: {detection_count} 个目标")
 
-        detections = [
-            {'name': n, 'count': c,
-             'percentage': (c / detection_count * 100) if detection_count > 0 else 0.0}
-            for n, c in class_counts.items()
-        ]
-        detections.sort(key=lambda x: x['count'], reverse=True)
-
+        detections     = build_detections_list(class_counts, detection_count)
         avg_confidence = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
 
         return render_template('result.html',
@@ -673,10 +564,9 @@ def predict_url():
 
 
 if __name__ == '__main__':
-    # 从环境变量获取Flask配置
-    flask_host = os.getenv("FLASK_HOST", "0.0.0.0")
-    flask_port = int(os.getenv("FLASK_PORT", "5000"))
+    flask_host  = os.getenv("FLASK_HOST", "0.0.0.0")
+    flask_port  = int(os.getenv("FLASK_PORT", "5000"))
     flask_debug = os.getenv("FLASK_DEBUG", "False").lower() == "true"
-    
+
     logger.info(f"启动Flask服务器: {flask_host}:{flask_port}, debug={flask_debug}")
     app.run(host=flask_host, port=flask_port, debug=flask_debug)
