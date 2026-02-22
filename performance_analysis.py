@@ -21,6 +21,10 @@ from models.experimental import attempt_load
 from utils.general import non_max_suppression
 from utils.augmentations import letterbox
 
+# 设置中文字体
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+
 # 加载模型
 def load_model(weights_path):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

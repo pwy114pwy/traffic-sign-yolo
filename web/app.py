@@ -4,6 +4,9 @@ import cv2
 import torch
 import time
 import logging
+import requests
+from io import BytesIO
+import numpy as np
 from flask import Flask, request, render_template, jsonify
 from pathlib import Path
 import sys
@@ -526,6 +529,147 @@ def predict_video():
         if out is not None:
             out.release()
         return jsonify({'error': f'视频检测失败: {str(e)}'}), 500
+
+
+@app.route('/predict_url', methods=['POST'])
+def predict_url():
+    """通过图片 URL 进行检测"""
+    try:
+        image_url = request.form.get('image_url', '').strip()
+        if not image_url:
+            return jsonify({'error': '未提供图片网址'}), 400
+
+        # 验证 URL 格式
+        if not image_url.startswith(('http://', 'https://')):
+            return jsonify({'error': '请输入有效的 http/https 图片网址'}), 400
+
+        # 获取检测参数
+        conf_thres = float(request.form.get('conf_thres', 0.25))
+        iou_thres = float(request.form.get('iou_thres', 0.45))
+
+        # 下载图片（自动使用系统代理；若 SSL 校验失败则关闭验证重试）
+        logger.info(f"正在下载图片: {image_url}")
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        try:
+            resp = requests.get(image_url, timeout=15, headers=headers)
+            resp.raise_for_status()
+        except requests.exceptions.SSLError:
+            logger.warning("SSL 验证失败，尝试关闭 SSL 验证重新下载")
+            try:
+                import urllib3
+                urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+                resp = requests.get(image_url, timeout=15, headers=headers, verify=False)
+                resp.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                return jsonify({'error': f'下载图片失败（SSL）: {str(e)}'}), 400
+        except requests.exceptions.ProxyError as e:
+            logger.warning(f"代理连接失败，尝试绕过代理直连: {e}")
+            try:
+                resp = requests.get(image_url, timeout=15, headers=headers,
+                                    verify=False, proxies={'http': None, 'https': None})
+                resp.raise_for_status()
+            except requests.exceptions.RequestException as e2:
+                return jsonify({'error': f'下载图片失败（代理）: {str(e2)}'}), 400
+        except requests.exceptions.Timeout:
+            return jsonify({'error': '下载图片超时，请检查网址或网络'}), 400
+        except requests.exceptions.RequestException as e:
+            return jsonify({'error': f'下载图片失败: {str(e)}'}), 400
+
+
+        # 解码图片
+        img_array = np.frombuffer(resp.content, dtype=np.uint8)
+        img0 = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+        if img0 is None:
+            return jsonify({'error': '无法解码图片，请确认链接指向有效的图片文件'}), 400
+
+        # 从 URL 提取文件名
+        from urllib.parse import urlparse
+        url_path = urlparse(image_url).path
+        filename = os.path.basename(url_path) or 'url_image.jpg'
+        # 确保文件名有合法图片扩展名
+        if not filename.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.webp')):
+            filename += '.jpg'
+
+        # 保存原图（可选，方便调试）
+        input_path = os.path.join(UPLOAD_FOLDER, filename)
+        cv2.imwrite(input_path, img0)
+        logger.info(f"URL 图片已保存: {input_path}")
+
+        # 开始计时
+        start_time = time.time()
+
+        # 预处理
+        img = preprocess_image(img0, 640)
+
+        # 推理
+        pred = detect_objects(img, conf_thres=conf_thres, iou_thres=iou_thres)
+
+        inference_time = time.time() - start_time
+        logger.info(f"推理耗时: {inference_time:.3f}秒")
+
+        # 检查图片是否过小
+        original_shape = img0.shape
+        min_dim = min(original_shape[0], original_shape[1])
+        scale_factor = 1.0
+
+        if min_dim < SCALE_THRESHOLD:
+            scale_factor = SCALE_THRESHOLD / min_dim
+            new_width = int(original_shape[1] * scale_factor)
+            new_height = int(original_shape[0] * scale_factor)
+            img0 = cv2.resize(img0, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+
+        line_width = calculate_line_width(img0.shape)
+        annotator = Annotator(img0, line_width=line_width, example=str(names))
+
+        detection_count = 0
+        unique_classes = set()
+        total_confidence = 0.0
+        class_counts = {}
+        anomaly_count = 0
+
+        for det in pred:
+            if len(det):
+                det[:, :4] = scale_boxes(img.shape[2:], det[:, :4], original_shape).round()
+                if scale_factor != 1.0:
+                    det[:, :4] *= scale_factor
+                    det[:, :4] = det[:, :4].round()
+                detection_count += len(det)
+                for *xyxy, conf, cls in reversed(det):
+                    class_name = annotate_detection(annotator, xyxy, conf.item(), cls.item())
+                    unique_classes.add(class_name)
+                    total_confidence += conf.item()
+                    class_counts[class_name] = class_counts.get(class_name, 0) + 1
+                    if conf < ANOMALY_CONF_THRES:
+                        anomaly_count += 1
+
+        output_path = os.path.join(RESULT_FOLDER, filename)
+        cv2.imwrite(output_path, annotator.result())
+        logger.info(f"URL 图片检测完成: {detection_count} 个目标")
+
+        detections = [
+            {'name': n, 'count': c,
+             'percentage': (c / detection_count * 100) if detection_count > 0 else 0.0}
+            for n, c in class_counts.items()
+        ]
+        detections.sort(key=lambda x: x['count'], reverse=True)
+
+        avg_confidence = (total_confidence / detection_count * 100) if detection_count > 0 else 0.0
+
+        return render_template('result.html',
+                               img_path=filename,
+                               detection_count=detection_count,
+                               unique_classes_count=len(unique_classes),
+                               avg_confidence=avg_confidence,
+                               detections=detections,
+                               anomaly_count=anomaly_count,
+                               inference_time=inference_time,
+                               class_counts=class_counts,
+                               conf_thres=conf_thres,
+                               iou_thres=iou_thres)
+
+    except Exception as e:
+        logger.error(f"URL 图片检测失败: {str(e)}", exc_info=True)
+        return jsonify({'error': f'检测失败: {str(e)}'}), 500
 
 
 if __name__ == '__main__':

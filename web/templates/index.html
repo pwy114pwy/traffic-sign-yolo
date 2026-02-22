@@ -216,6 +216,83 @@
             font-size: 0.9em;
         }
 
+        /* URL 输入模式相关样式 */
+        .mode-switcher {
+            display: flex;
+            background: #f0f0f0;
+            border-radius: 25px;
+            padding: 4px;
+            margin-bottom: 20px;
+            width: fit-content;
+            margin: 0 auto 20px;
+        }
+
+        .mode-btn {
+            padding: 8px 22px;
+            border: none;
+            border-radius: 21px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            background: transparent;
+            color: #888;
+            transition: all 0.25s ease;
+        }
+
+        .mode-btn.active {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            box-shadow: 0 3px 10px rgba(79, 172, 254, 0.35);
+        }
+
+        .url-input-wrap {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            align-items: center;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 25px;
+            font-size: 0.95em;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .url-input:focus {
+            border-color: #4facfe;
+        }
+
+        .url-preview-wrap {
+            margin-top: 15px;
+            display: none;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #ddd;
+            max-height: 300px;
+        }
+
+        .url-preview-wrap.show {
+            display: block;
+        }
+
+        .url-preview-wrap img {
+            max-width: 100%;
+            max-height: 298px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .url-error {
+            color: #e53935;
+            font-size: 0.88em;
+            margin-top: 6px;
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 2em;
@@ -246,43 +323,69 @@
         <div class="tab-content">
             <!-- 图片检测面板 -->
             <div id="image" class="tab-panel active">
+
+                <!-- 输入模式切换 -->
+                <div class="mode-switcher">
+                    <button class="mode-btn active" id="mode-file-btn" onclick="switchImageMode('file')">📁 本地文件</button>
+                    <button class="mode-btn" id="mode-url-btn" onclick="switchImageMode('url')">🔗 图片网址</button>
+                </div>
+
+                <!-- 本地文件模式 -->
                 <form id="image-form" method="POST" enctype="multipart/form-data" action="/predict">
-                    <div class="upload-section">
-                        <div class="upload-icon">📁</div>
-                        <div class="upload-label">上传图片进行交通标志检测</div>
-                        <label for="file-input" class="custom-file-upload">
-                            选择图片文件
-                        </label>
-                        <input type="file" name="image" id="file-input" accept="image/*" required>
-                        
-                        <div id="file-info" class="file-info" style="display: none;"></div>
-                        
-                        <div id="preview-container" class="preview-container">
-                            <img id="image-preview" src="" alt="图片预览">
+                    <div id="file-mode-section">
+                        <div class="upload-section">
+                            <div class="upload-icon">📁</div>
+                            <div class="upload-label">上传图片进行交通标志检测</div>
+                            <label for="file-input" class="custom-file-upload">
+                                选择图片文件
+                            </label>
+                            <input type="file" name="image" id="file-input" accept="image/*">
+
+                            <div id="file-info" class="file-info" style="display: none;"></div>
+
+                            <div id="preview-container" class="preview-container">
+                                <img id="image-preview" src="" alt="图片预览">
+                            </div>
                         </div>
                     </div>
-                    
+
+                    <!-- URL 模式区域（视觉上属于同一 form，但由 JS 控制提交） -->
+                    <div id="url-mode-section" style="display:none;">
+                        <div class="upload-section">
+                            <div class="upload-icon">🔗</div>
+                            <div class="upload-label">输入图片网址进行交通标志检测</div>
+                            <div class="url-input-wrap">
+                                <input type="url" id="image-url-input" class="url-input"
+                                       placeholder="https://example.com/image.jpg">
+                            </div>
+                            <div class="url-error" id="url-error">⚠️ 无法加载图片，请检查网址是否有效</div>
+                            <div class="url-preview-wrap" id="url-preview-wrap">
+                                <img id="url-preview" src="" alt="图片预览">
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- 检测参数调整 -->
                     <div style="margin: 20px;">
                         <h3 style="text-align: center; color: #333; margin-bottom: 20px;">检测参数调整</h3>
-                        
+
                         <div style="margin-bottom: 20px;">
                             <label for="conf-thres" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">
                                 置信度阈值: <span id="conf-thres-value">0.25</span>
                             </label>
-                            <input type="range" name="conf_thres" id="conf-thres" min="0.01" max="1.0" step="0.01" value="0.25" 
+                            <input type="range" name="conf_thres" id="conf-thres" min="0.01" max="1.0" step="0.01" value="0.25"
                                    style="width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none;">
                             <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.8em;">
                                 <span>0.01</span>
                                 <span>1.00</span>
                             </div>
                         </div>
-                        
+
                         <div style="margin-bottom: 20px;">
                             <label for="iou-thres" style="display: block; margin-bottom: 8px; font-weight: 600; color: #555;">
                                 IoU阈值: <span id="iou-thres-value">0.45</span>
                             </label>
-                            <input type="range" name="iou_thres" id="iou-thres" min="0.01" max="1.0" step="0.01" value="0.45" 
+                            <input type="range" name="iou_thres" id="iou-thres" min="0.01" max="1.0" step="0.01" value="0.45"
                                    style="width: 100%; height: 8px; border-radius: 5px; background: #ddd; outline: none; -webkit-appearance: none;">
                             <div style="display: flex; justify-content: space-between; color: #666; font-size: 0.8em;">
                                 <span>0.01</span>
@@ -290,14 +393,14 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="progress-container" id="progress-container">
                         <div class="progress-bar">
                             <div class="progress-fill" id="progress-fill"></div>
                         </div>
                         <div class="progress-text" id="progress-text">准备上传...</div>
                     </div>
-                    
+
                     <center>
                         <button type="submit" class="upload-btn" id="upload-btn">开始检测</button>
                     </center>
@@ -400,7 +503,34 @@
             evt.currentTarget.classList.add("active");
         }
 
-        // 图片预览
+        // ===== 图片输入模式切换 =====
+        let imageMode = 'file'; // 'file' | 'url'
+
+        function switchImageMode(mode) {
+            imageMode = mode;
+            const fileSection = document.getElementById('file-mode-section');
+            const urlSection = document.getElementById('url-mode-section');
+            const fileModeBtn = document.getElementById('mode-file-btn');
+            const urlModeBtn = document.getElementById('mode-url-btn');
+            const fileInput = document.getElementById('file-input');
+
+            if (mode === 'file') {
+                fileSection.style.display = 'block';
+                urlSection.style.display = 'none';
+                fileModeBtn.classList.add('active');
+                urlModeBtn.classList.remove('active');
+                fileInput.required = true;
+            } else {
+                fileSection.style.display = 'none';
+                urlSection.style.display = 'block';
+                fileModeBtn.classList.remove('active');
+                urlModeBtn.classList.add('active');
+                fileInput.required = false;
+                fileInput.value = '';
+            }
+        }
+
+        // 图片预览（本地文件）
         document.getElementById('file-input').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
@@ -408,16 +538,43 @@
                 const preview = document.getElementById('image-preview');
                 const previewContainer = document.getElementById('preview-container');
                 const fileInfo = document.getElementById('file-info');
-                
+
                 reader.onload = function(e) {
                     preview.src = e.target.result;
                     previewContainer.classList.add('show');
                     fileInfo.textContent = `已选择：${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
                     fileInfo.style.display = 'block';
                 }
-                
                 reader.readAsDataURL(file);
             }
+        });
+
+        // URL 输入实时预览
+        let urlDebounce = null;
+        document.getElementById('image-url-input').addEventListener('input', function() {
+            clearTimeout(urlDebounce);
+            const url = this.value.trim();
+            const previewWrap = document.getElementById('url-preview-wrap');
+            const previewImg = document.getElementById('url-preview');
+            const urlError = document.getElementById('url-error');
+
+            if (!url) {
+                previewWrap.classList.remove('show');
+                urlError.style.display = 'none';
+                return;
+            }
+
+            urlDebounce = setTimeout(() => {
+                previewImg.onload = () => {
+                    previewWrap.classList.add('show');
+                    urlError.style.display = 'none';
+                };
+                previewImg.onerror = () => {
+                    previewWrap.classList.remove('show');
+                    urlError.style.display = 'block';
+                };
+                previewImg.src = url;
+            }, 600);
         });
 
         // 视频文件信息显示
@@ -430,30 +587,102 @@
             }
         });
 
-        // 表单提交进度模拟
+        // 表单提交处理（支持文件模式和 URL 模式）
         document.getElementById('image-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
             const progressContainer = document.getElementById('progress-container');
             const progressFill = document.getElementById('progress-fill');
             const progressText = document.getElementById('progress-text');
             const uploadBtn = document.getElementById('upload-btn');
-            
-            progressContainer.style.display = 'block';
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = '检测中...';
-            
-            // 模拟进度
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += Math.random() * 20;
-                if (progress >= 90) {
-                    clearInterval(interval);
-                    progressFill.style.width = '90%';
-                    progressText.textContent = '正在进行检测...';
-                } else {
-                    progressFill.style.width = progress + '%';
-                    progressText.textContent = `上传进度：${Math.round(progress)}%`;
+            const confThres = document.getElementById('conf-thres').value;
+            const iouThres = document.getElementById('iou-thres').value;
+
+            if (imageMode === 'url') {
+                // URL 模式
+                const imageUrl = document.getElementById('image-url-input').value.trim();
+                if (!imageUrl) {
+                    alert('请输入图片网址');
+                    return;
                 }
-            }, 300);
+
+                progressContainer.style.display = 'block';
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = '检测中...';
+
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += Math.random() * 20;
+                    if (progress >= 90) {
+                        clearInterval(interval);
+                        progressFill.style.width = '90%';
+                        progressText.textContent = '正在进行检测...';
+                    } else {
+                        progressFill.style.width = progress + '%';
+                        progressText.textContent = `下载中：${Math.round(progress)}%`;
+                    }
+                }, 300);
+
+                const formData = new FormData();
+                formData.append('image_url', imageUrl);
+                formData.append('conf_thres', confThres);
+                formData.append('iou_thres', iouThres);
+
+                fetch('/predict_url', { method: 'POST', body: formData })
+                    .then(async res => {
+                        clearInterval(interval);
+                        if (res.redirected) {
+                            window.location.href = res.url;
+                        } else if (res.ok) {
+                            // 服务端返回 HTML 页面，直接替换当前文档
+                            const html = await res.text();
+                            document.open();
+                            document.write(html);
+                            document.close();
+                        } else {
+                            const data = await res.json();
+                            alert('检测失败：' + (data.error || '未知错误'));
+                            uploadBtn.disabled = false;
+                            uploadBtn.textContent = '开始检测';
+                            progressContainer.style.display = 'none';
+                        }
+                    })
+                    .catch(err => {
+                        clearInterval(interval);
+                        alert('请求失败：' + err.message);
+                        uploadBtn.disabled = false;
+                        uploadBtn.textContent = '开始检测';
+                        progressContainer.style.display = 'none';
+                    });
+
+            } else {
+                // 本地文件模式
+                const fileInput = document.getElementById('file-input');
+                if (!fileInput.files.length) {
+                    alert('请选择图片文件');
+                    return;
+                }
+
+                progressContainer.style.display = 'block';
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = '检测中...';
+
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress += Math.random() * 20;
+                    if (progress >= 90) {
+                        clearInterval(interval);
+                        progressFill.style.width = '90%';
+                        progressText.textContent = '正在进行检测...';
+                    } else {
+                        progressFill.style.width = progress + '%';
+                        progressText.textContent = `上传进度：${Math.round(progress)}%`;
+                    }
+                }, 300);
+
+                // 普通 form 提交
+                this.submit();
+            }
         });
 
         document.getElementById('video-form').addEventListener('submit', function(e) {
