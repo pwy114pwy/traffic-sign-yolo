@@ -14,6 +14,18 @@
 - 📈 **模型评估**：支持在测试集上评估模型性能，生成详细的评估报告
 - 🐳 **Docker 支持**：提供 Docker 镜像和 Docker Compose 配置，便于部署和运行
 
+## 🖼️ 运行效果
+
+<div align="center">
+  <img src="assets/images/web_demo.png" width="800px" alt="Web 界面演示">
+  <p>图 1：Web 端交通标志检测界面</p>
+</div>
+
+<div align="center">
+  <img src="assets/images/detection_results.png" width="800px" alt="检测结果展示">
+  <p>图 2：不同场景下的检测效果</p>
+</div>
+
 ## 📋 环境要求
 
 - Python 3.9+
