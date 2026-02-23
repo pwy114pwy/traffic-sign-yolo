@@ -26,7 +26,7 @@
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/traffic-sign-yolo.git
+git clone https://github.com/pwy114pwy/traffic-sign-yolo.git
 cd traffic-sign-yolo
 ```
 
@@ -364,11 +364,4 @@ Address already in use
    ```bash
    python yolov5/train.py --data data/gtsrb.yaml --weights yolov5s.pt --epochs 100 --batch-size 16
    ```
-
-## 📧 联系方式
-
-如有问题或建议，请通过以下方式联系：
-
-- Email: yourname@example.com
-- GitHub: [yourusername](https://github.com/yourusername)
 
