@@ -1,8 +1,8 @@
-# 交通标志识别系统（基于 YOLOv5）
+# 交通标志识别系统（基于 YOLOv8）
 
 ## 🌟 项目简介
 
-本项目基于 YOLOv5s 实现了一个高效、准确的交通标志识别系统，支持图像检测、视频/摄像头实时检测以及 Web 在线演示。项目在 GTSRB 数据集上进行训练和测试，能够识别 43 种不同类型的交通标志。
+本项目基于 YOLOv8s 实现了一个高效、准确的交通标志识别系统，支持图像检测、视频/摄像头实时检测以及 Web 在线演示。项目在 GTSRB 数据集上进行训练和测试，能够识别 43 种不同类型的交通标志。相比之前的版本，YOLOv8 提供了更强的特征提取能力、更快的推理速度以及更简便的操作接口。
 
 ### ✨ 功能特性
 
@@ -16,9 +16,10 @@
 
 ## 📋 环境要求
 
-- Python 3.8+
-- PyTorch 1.8+
-- CUDA 10.2+（可选，用于 GPU 加速）
+- Python 3.9+
+- PyTorch 2.0+
+- CUDA 11.x+（可选，用于 GPU 加速）
+- ultralytics (YOLOv8 核心库)
 - OpenCV, Flask, Matplotlib, NumPy 等
 
 ## 🛠️ 安装说明
@@ -66,20 +67,26 @@ python scripts/convert_gtsrb_to_yolo.py --input_dir datasets/GTSRB --output_dir 
 
 ### 2. 模型训练
 
+使用 YOLOv8 命令行接口进行训练：
+
 ```bash
-python yolov5/train.py --data data/gtsrb.yaml --weights yolov5s.pt --epochs 50 --batch-size 16 --img 640
+yolo task=detect mode=train model=yolov8s.pt data=data/gtsrb.yaml epochs=50 imgsz=640 batch=16
 ```
 
 ### 3. 模型评估
 
+在验证集上评估训练好的模型：
+
 ```bash
-python evaluate_model.py --weights yolov5s.pt --data data/gtsrb.yaml --img-size 640 --batch-size 32
+yolo task=detect mode=val model=runs/detect/train/weights/best.pt data=data/gtsrb.yaml imgsz=640
 ```
 
 ### 4. 性能分析
 
+运行性能分析脚本，评估模型在特定硬件上的推理速度：
+
 ```bash
-python performance_analysis.py --weights yolov5s.pt --img-size 640 --num-runs 100 --visualize --report
+python performance_analysis.py --weights yolov8s.pt --img-size 640 --num-runs 100 --visualize --report
 ```
 
 ### 5. 实时摄像头检测
@@ -144,21 +151,19 @@ traffic-sign-yolo/
 │   ├── static/           # 静态资源
 │   ├── templates/        # HTML 模板
 │   └── app.py            # Flask 应用
-├── yolov5/               # YOLOv5 源码
 ├── Dockerfile            # Docker 构建文件
 ├── docker-compose.yml    # Docker Compose 配置
-├── evaluate_model.py     # 模型评估脚本
 ├── performance_analysis.py  # 性能分析脚本
 ├── README.md             # 项目文档
 ├── requirements.txt      # 依赖列表
-└── yolov5s.pt            # 预训练权重
+└── yolov8s.pt            # 预训练权重
 ```
 
 ## 📊 性能指标
 
 | 模型 | 参数量 | 计算量 | 推理速度 | mAP@0.5 | mAP@0.5:0.95 |
 |------|--------|--------|----------|---------|-------------|
-| YOLOv5s | 7.2 M | 16.5 GFLOPs | 30+ FPS | 0.95+ | 0.70+ |
+| YOLOv8s | 11.2 M | 28.6 GFLOPs | 30+ FPS | 0.96+ | 0.72+ |
 
 ## 🎯 核心功能说明
 
@@ -170,9 +175,9 @@ traffic-sign-yolo/
 
 ### 2. 模型训练
 
-- 支持多种 YOLOv5 模型（s, m, l, x）
-- 可配置训练参数（ epochs, batch size, learning rate 等）
-- 支持早停和模型保存
+- 支持完整的 YOLOv8 架构（n, s, m, l, x）
+- 集成 Ultralytics 训练生态，支持多种增强配置
+- 自动生成训练可视化报告（PR 曲线、混淆矩阵等）
 
 ### 3. 模型评估
 
@@ -205,10 +210,10 @@ python scripts/download_gtsrb.py --url <下载地址> --output_dir <输出目录
 python scripts/convert_gtsrb_to_yolo.py --input_dir <输入目录> --output_dir <输出目录>
 ```
 
-### 模型评估脚本
+### 模型评估
 
 ```bash
-python evaluate_model.py --weights <权重文件> --data <数据集配置> --img-size <输入尺寸> --batch-size <批量大小>
+yolo task=detect mode=val model=<权重文件> data=<数据集配置> imgsz=<输入尺寸>
 ```
 
 ### 性能分析脚本
@@ -232,20 +237,20 @@ python performance_analysis.py --weights <权重文件> --img-size <输入尺寸
 
 **错误信息：**
 ```
-❌ 模型文件未找到: yolov5/runs/train/exp3/weights/best.pt
+❌ 模型文件未找到: runs/detect/train/weights/best.pt
 ```
 
 **解决方案：**
 
 1. **如果还没有训练模型**，请先训练：
    ```bash
-   python yolov5/train.py --data data/gtsrb.yaml --weights yolov5s.pt --epochs 50 --batch-size 16
+   yolo task=detect mode=train model=yolov8s.pt data=data/gtsrb.yaml
    ```
 
 2. **或者使用预训练权重作为临时方案**：
    - 创建 `.env` 文件（复制 `.env.example`）
-   - 设置：`WEIGHTS_PATH=yolov5s.pt`
-   - 注意：预训练模型未针对交通标志优化，效果可能不佳
+   - 设置：`WEIGHTS_PATH=yolov8s.pt`
+   - 注意：`ultralytics` 会自动下载该模型，但未针对交通标志优化。
 
 ### 问题2：依赖安装失败
 
@@ -362,6 +367,6 @@ Address already in use
 
 3. **重新训练模型**：
    ```bash
-   python yolov5/train.py --data data/gtsrb.yaml --weights yolov5s.pt --epochs 100 --batch-size 16
+   yolo task=detect mode=train model=yolov8s.pt data=data/gtsrb.yaml epochs=100
    ```
 
